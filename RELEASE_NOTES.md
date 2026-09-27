@@ -1,3 +1,14 @@
+# Pixel Art Generator 0.1.1
+
+Kept up to date with BlockDesigner 0.4.22: built and tested against its plugin API. Nothing changes in how it works.
+
+**Needs BlockDesigner 0.4.17 or later** (plugin API 5).
+
+## Changed
+- Built against the BlockDesigner 0.4.22 plugin API.
+
+---
+
 # Pixel Art Generator 0.1.0
 
 The first release: a picture turned into blocks as pixel art, a relief, an extruded shape or a rounded 3D guess, with slabs and stairs. It works offline, with no AI.
