@@ -6,5 +6,5 @@
   "description": "Turns a picture into blocks: pixel art, a relief or heightmap, an extruded silhouette, or a rounded 3D shape (inflate or revolve), with slabs and stairs for half-block detail. Splits the picture into colour regions and matches each to the closest-looking block. Works offline, no AI.",
   "updates": "https://github.com/doolecg/BlockDesigner-PixelArtGenerator",
   "main": "io.blockdesigner.pixelart.PixelArtGeneratorPlugin",
-  "api": 5
+  "api": 6
 }

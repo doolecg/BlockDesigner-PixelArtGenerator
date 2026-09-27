@@ -1,3 +1,22 @@
+# Pixel Art Generator 0.2.0
+
+The Generate page is easier to read: settings grouped under headings, with units and help, and shared with File › Import.
+
+**Needs BlockDesigner 0.4.24 or later** (plugin API 6). Older BlockDesigners keep 0.1.2 until BlockDesigner itself is updated.
+
+## New
+- **Settings grouped** under Shape, Blocks and Background, with **Picture adjustments** folded away, each with its unit and a line of help.
+- **One set of settings** for the page and File › Import: change them in either and the other shows the same. Your page settings are kept.
+- **Place pixel art** can be given a key in Settings › Keybinds.
+- **Blocks used** lists every kind of block (it stopped at 64).
+
+## Changed
+- **The page is called Generate.** With no picture open it shows **Open picture…**; with one, the picture's name, the Picture / Regions / Blocks preview (about a third of the page tall) and a button to open another.
+- **Build as new layer** and **Place with tool** are at the bottom, with the size and block count and any error above them.
+- **The importer is now called "Pixel art from a picture (Pixel Art Generator)"**, and BlockDesigner now asks which importer to use when Palette Tools is installed too; before, pictures always went to Palette Tools' importer.
+
+---
+
 # Pixel Art Generator 0.1.2
 
 Kept up to date with BlockDesigner 0.4.23: built and tested against its plugin API. Nothing changes in how it works.

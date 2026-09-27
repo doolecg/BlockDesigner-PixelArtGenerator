@@ -31,7 +31,7 @@ public final class ImageImporter implements PluginImporter {
 
     @Override
     public String displayName() {
-        return "Blocks from a picture (Pixel Art Generator)";
+        return "Pixel art from a picture (Pixel Art Generator)";
     }
 
     @Override

@@ -11,47 +11,59 @@ import io.blockdesigner.plugin.OptionValues;
 import io.blockdesigner.plugin.PanelContext;
 import io.blockdesigner.plugin.PluginContext;
 import io.blockdesigner.plugin.PluginPanel;
-import javafx.geometry.Insets;
+import io.blockdesigner.plugin.ui.ActionBar;
+import io.blockdesigner.plugin.ui.Banner;
+import io.blockdesigner.plugin.ui.Controls;
+import io.blockdesigner.plugin.ui.EmptyState;
+import io.blockdesigner.plugin.ui.Icon;
+import io.blockdesigner.plugin.ui.ItemList;
+import io.blockdesigner.plugin.ui.ItemRow;
+import io.blockdesigner.plugin.ui.OptionsForm;
+import io.blockdesigner.plugin.ui.PanelScaffold;
+import io.blockdesigner.plugin.ui.Section;
+import io.blockdesigner.plugin.ui.Segmented;
+import io.blockdesigner.plugin.ui.Theme;
+import io.blockdesigner.plugin.ui.Tone;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.ToggleButton;
-import javafx.scene.control.ToggleGroup;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
-import javafx.scene.input.Clipboard;
-import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 
 import java.io.IOException;
-import java.io.Reader;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Properties;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * The Pixel Art Generator page: pick a picture, see it as colour regions and as blocks while changing the settings, then
- * build it as a new layer. The work runs on a background thread; only the newest request's result is shown.
+ * The Generate page: open a picture, see it as colour regions and as blocks while changing the settings, then build it
+ * as a new layer or place it with the tool. The settings are the Import window's too (one set of values). The work
+ * runs on a background thread; only the newest request's result is shown.
  */
 public final class PixelArtPanel implements PluginPanel {
     private static final String[] EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "gif"};
+    private static final List<String> VIEWS = List.of("Picture", "Regions", "Blocks");
+    /** The values' name in BlockDesigner's settings: the importer's, so this page and File › Import agree. */
+    static final String REMEMBER_AS = "importer/image";
+
+    /** A kind of block the build uses, and how many. */
+    private record Used(BlockState block, String name, long count, Image icon, int colour) {
+    }
 
     private final PluginContext ctx;
     private final BlockColours colours;
@@ -72,8 +84,11 @@ public final class PixelArtPanel implements PluginPanel {
     private boolean assetsSeen;
     private Label fileLabel, stats;
     private ImageView view;
-    private ToggleGroup previewGroup;
-    private VBox blockRows;
+    private Segmented<String> preview;
+    private VBox pictureBox;
+    private EmptyState noPicture;
+    private ItemList<Used> blocks;
+    private Banner banner;
     private Button build, place, copy;
 
     public PixelArtPanel(PluginContext ctx, BlockColours colours, CurrentBuild current) {
@@ -89,7 +104,7 @@ public final class PixelArtPanel implements PluginPanel {
 
     @Override
     public String title() {
-        return "Pixel Art Generator";
+        return "Generate";
     }
 
     @Override
@@ -100,7 +115,6 @@ public final class PixelArtPanel implements PluginPanel {
 
     @Override
     public Node create(PanelContext context) {
-        values = loadValues();
         assetsSeen = ctx.assets().available();
         context.onShown(() -> {
             // Block colours come from the game's textures: rebuild once they are loaded.
@@ -112,76 +126,79 @@ public final class PixelArtPanel implements PluginPanel {
             }
         });
 
-        Button open = new Button("Open picture…");
-        open.setOnAction(e -> choose(open));
-        fileLabel = new Label("No picture yet: open one or drop it here");
-        fileLabel.setStyle("-fx-text-fill: -color-fg-muted;");
-        fileLabel.setWrapText(true);
-
-        previewGroup = new ToggleGroup();
-        HBox tabs = new HBox(4, tab("Picture", "picture"), tab("Regions", "regions"), tab("Blocks", "blocks"));
-        previewGroup.selectToggle(previewGroup.getToggles().get(2));
-        previewGroup.selectedToggleProperty().addListener((obs, a, b) -> {
-            if (b == null) previewGroup.selectToggle(a);
-            else showPreview();
+        // The settings: the app's form, sharing its values with File › Import.
+        OptionsForm form = ctx.ui().optionsForm(BuildOptions.OPTIONS, REMEMBER_AS, v -> {
+            values = v;
+            rebuild();
         });
+        values = form.values();
+        Optional<OptionValues> old = OldPanelSettings.migrate(ctx.dataFolder(), ctx.blocks()::resolve);
+        if (old.isPresent()) {
+            form.setValues(old.get());
+            values = form.values();
+        }
 
+        // The picture, at the top: an empty state until one is open.
+        noPicture = new EmptyState(Icon.IMAGE, "No picture open.")
+                .hint("Open a picture or drop one here.")
+                .action(Controls.primary("Open picture…", this::choose));
+        fileLabel = Controls.pathCaption("");
+        HBox.setHgrow(fileLabel, javafx.scene.layout.Priority.ALWAYS);
+        fileLabel.setMaxWidth(Double.MAX_VALUE);
+        HBox fileRow = new HBox(Theme.SM, fileLabel, Controls.iconButton(Icon.FOLDER, "Open another picture…", this::choose));
+        fileRow.setAlignment(Pos.CENTER_LEFT);
+        preview = new Segmented<>(VIEWS, s -> s);
+        preview.setValue("Blocks");
+        preview.valueProperty().addListener((o, a, b) -> showPreview());
         view = new ImageView();
         view.setPreserveRatio(true);
         view.setSmooth(false); // blocks stay crisp squares when scaled up
         StackPane frame = new StackPane(view);
-        frame.setMinHeight(180);
-        frame.setPadding(new Insets(6));
-        frame.setStyle("-fx-background-color: -color-bg-inset; -fx-background-radius: 6;");
-        view.fitWidthProperty().bind(frame.widthProperty().subtract(12));
-        view.setFitHeight(320);
+        frame.getStyleClass().add("bd-frame");
+        view.fitWidthProperty().bind(frame.widthProperty().subtract(16));
+        view.fitHeightProperty().bind(frame.heightProperty().subtract(16));
+        pictureBox = new VBox(Theme.SM, fileRow, preview, frame);
+        Controls.show(pictureBox, false);
 
-        stats = new Label();
-        stats.setStyle("-fx-text-fill: -color-fg-muted; -fx-font-size: 11px;");
+        // Blocks used.
+        blocks = new ItemList<Used>(u -> (u.icon() != null ? ItemRow.of(u.name()).image(u.icon()) : ItemRow.of(u.name()).swatch(u.colour()))
+                .trailing(Controls.caption(String.format(Locale.ROOT, "%,d", u.count()))))
+                .empty(new EmptyState(null, "No blocks yet.").hint("Open a picture to see the blocks it takes."))
+                .visibleRows(3, 10);
+        copy = Controls.iconButton(Icon.COPY, "Copy block list", this::copyList);
+        Section used = new Section("Blocks used", blocks).actions(copy);
+
+        // Status and actions, at the bottom.
+        banner = new Banner();
+        stats = Controls.caption("");
         stats.setWrapText(true);
-
-        build = new Button("Build as new layer");
-        build.getStyleClass().add("accent");
-        build.setMaxWidth(Double.MAX_VALUE);
-        build.setOnAction(e -> buildLayer());
-        place = new Button("Place with tool");
-        place.setOnAction(e -> ctx.pickTool(PlacePixelArtTool.ID));
-        copy = new Button("Copy block list");
-        copy.setOnAction(e -> copyList());
-        HBox.setHgrow(build, Priority.ALWAYS);
-        HBox actions = new HBox(6, build, place);
-        HBox more = new HBox(6, copy);
+        build = Controls.primary("Build as new layer", this::buildLayer);
+        place = Controls.button("Place with tool", "Pick the Place pixel art tool: click where the build goes", () -> ctx.pickTool(PlacePixelArtTool.ID));
         build.setDisable(true);
         place.setDisable(true);
         copy.setDisable(true);
 
-        OptionsForm form = new OptionsForm(BuildOptions.OPTIONS, values, v -> {
-            values = v;
-            saveValues();
-            rebuild();
-        });
+        PanelScaffold page = new PanelScaffold()
+                .top(noPicture, pictureBox)
+                .add(form.node(), used)
+                .footer(banner, stats, new ActionBar(build, place));
+        // The preview takes about a third of the page, 140 to 260 px.
+        frame.prefHeightProperty().bind(Bindings.createDoubleBinding(() -> Math.clamp(page.getHeight() * 0.3, 140, 260), page.heightProperty()));
+        frame.setMinHeight(140);
+        frame.setMaxHeight(260);
+        Controls.show(stats, false);
 
-        blockRows = new VBox(2);
-        VBox content = new VBox(10, new HBox(8, open), fileLabel, tabs, frame, stats, actions, more,
-                heading("Settings"), form.node(), heading("Blocks used"), blockRows);
-        content.setPadding(new Insets(10));
-        content.setFillWidth(true);
-
-        ScrollPane scroll = new ScrollPane(content);
-        scroll.setFitToWidth(true);
-        scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
-
-        scroll.setOnDragOver(e -> {
+        page.setOnDragOver(e -> {
             if (droppedImage(e.getDragboard().getFiles()) != null) e.acceptTransferModes(TransferMode.COPY);
             e.consume();
         });
-        scroll.setOnDragDropped(e -> {
+        page.setOnDragDropped(e -> {
             Path p = droppedImage(e.getDragboard().getFiles());
             if (p != null) open(p);
             e.setDropCompleted(p != null);
             e.consume();
         });
-        return scroll;
+        return page;
     }
 
     @Override
@@ -191,17 +208,17 @@ public final class PixelArtPanel implements PluginPanel {
 
     // ---- picture and building --------------------------------------------------------------------------------
 
-    private void choose(Node owner) {
+    private void choose() {
         FileChooser fc = new FileChooser();
         fc.setTitle("Open a picture");
         fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Pictures", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"));
         if (file != null && file.getParent() != null && Files.isDirectory(file.getParent())) fc.setInitialDirectory(file.getParent().toFile());
-        java.io.File f = fc.showOpenDialog(owner.getScene() == null ? null : owner.getScene().getWindow());
+        java.io.File f = fc.showOpenDialog(ctx.ui().owner());
         if (f != null) open(f.toPath());
     }
 
     private void open(Path p) {
-        fileLabel.setText("Reading " + p.getFileName() + "…");
+        banner.hide();
         worker.submit(() -> {
             try {
                 Picture pic = Picture.read(p);
@@ -209,10 +226,13 @@ public final class PixelArtPanel implements PluginPanel {
                     file = p;
                     picture = pic;
                     fileLabel.setText(p.getFileName() + " · " + pic.width() + " × " + pic.height() + " px");
+                    Controls.show(noPicture, false);
+                    Controls.show(pictureBox, true);
                     rebuild();
                 });
             } catch (IOException | RuntimeException ex) {
-                ctx.runOnUiThread(() -> fileLabel.setText("Couldn't read " + p.getFileName() + ": " + ex.getMessage()));
+                ctx.runOnUiThread(() -> banner.show(Tone.DANGER, "Couldn't read " + p.getFileName() + ": " + ex.getMessage(),
+                        "Open another…", this::choose));
             }
         });
     }
@@ -223,6 +243,7 @@ public final class PixelArtPanel implements PluginPanel {
         Pipeline.Settings settings = BuildOptions.settings(values);
         int gen = generation.incrementAndGet();
         stats.setText("Working…");
+        Controls.show(stats, true);
         worker.submit(() -> {
             // A newer request is already queued: skip this one.
             if (gen != generation.get()) return;
@@ -237,10 +258,12 @@ public final class PixelArtPanel implements PluginPanel {
                     if (gen != generation.get()) return;
                     result = null;
                     current.set(null, null);
-                    stats.setText(ex.getMessage() == null ? ex.toString() : ex.getMessage());
+                    Controls.show(stats, false);
+                    banner.show(Tone.DANGER, ex.getMessage() == null ? ex.toString() : ex.getMessage());
                     build.setDisable(true);
                     place.setDisable(true);
                     copy.setDisable(true);
+                    blocks.getItems().clear();
                 });
             }
         });
@@ -248,6 +271,7 @@ public final class PixelArtPanel implements PluginPanel {
 
     private void show(Pipeline.Result r) {
         result = r;
+        banner.hide();
         BlockGrid g = r.grid();
         long total = r.structure().blockCount();
         stats.setText(String.format(Locale.ROOT, "%d × %d blocks · %,d blocks · %d kinds · %d colour regions%s",
@@ -263,40 +287,24 @@ public final class PixelArtPanel implements PluginPanel {
 
     private void showPreview() {
         if (result == null && picture == null) return;
-        String which = previewGroup.getSelectedToggle() == null ? "blocks" : (String) previewGroup.getSelectedToggle().getUserData();
+        String which = preview.getValue();
         Image img;
-        if (which.equals("picture") || result == null) img = image(picture.width(), picture.height(), picture.argb());
-        else if (which.equals("regions")) img = image(result.segmentation().width(), result.segmentation().height(), result.segmentation().toArgb());
+        if (which.equals("Picture") || result == null) img = image(picture.width(), picture.height(), picture.argb());
+        else if (which.equals("Regions")) img = image(result.segmentation().width(), result.segmentation().height(), result.segmentation().toArgb());
         else img = image(result.grid().width(), result.grid().height(), result.grid().toArgb());
         view.setImage(img);
-        view.setSmooth(which.equals("picture"));
+        view.setSmooth(which.equals("Picture"));
     }
 
     private void showBlocks(BlockGrid g) {
         long[] counts = g.counts();
-        blockRows.getChildren().clear();
-        for (int k = 0; k < g.palette().size() && k < 64; k++) {
+        List<Used> out = new ArrayList<>();
+        for (int k = 0; k < g.palette().size(); k++) {
             BlockState b = g.palette().get(k);
-            Node icon = ctx.blockIcon(b).<Node>map(i -> {
-                ImageView iv = new ImageView(i);
-                iv.setFitWidth(16);
-                iv.setFitHeight(16);
-                return iv;
-            }).orElseGet(() -> {
-                Region sw = new Region();
-                sw.setMinSize(14, 14);
-                sw.setMaxSize(14, 14);
-                return sw;
-            });
-            Label name = new Label(ctx.blocks().displayName(b));
-            Region gap = new Region();
-            HBox.setHgrow(gap, Priority.ALWAYS);
-            Label n = new Label(String.format(Locale.ROOT, "%,d", counts[k]));
-            n.setStyle("-fx-text-fill: -color-fg-muted;");
-            HBox row = new HBox(6, icon, name, gap, n);
-            row.setAlignment(Pos.CENTER_LEFT);
-            blockRows.getChildren().add(row);
+            out.add(new Used(b, ctx.blocks().displayName(b), counts[k], ctx.blockIcon(b).orElse(null), ctx.blocks().averageColor(b)));
         }
+        out.sort((a, b) -> Long.compare(b.count(), a.count()));
+        blocks.getItems().setAll(out);
     }
 
     private void buildLayer() {
@@ -312,27 +320,10 @@ public final class PixelArtPanel implements PluginPanel {
         StringBuilder sb = new StringBuilder();
         for (int k = 0; k < counts.length; k++)
             sb.append(ctx.blocks().displayName(g.palette().get(k))).append(": ").append(counts[k]).append('\n');
-        ClipboardContent c = new ClipboardContent();
-        c.putString(sb.toString());
-        Clipboard.getSystemClipboard().setContent(c);
-        ctx.toast("Block list copied");
+        ctx.ui().copyText(sb.toString(), "Block list copied");
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------
-
-    private ToggleButton tab(String label, String id) {
-        ToggleButton b = new ToggleButton(label);
-        b.setUserData(id);
-        b.setToggleGroup(previewGroup);
-        b.getStyleClass().add("small");
-        return b;
-    }
-
-    private static Label heading(String text) {
-        Label l = new Label(text);
-        l.setStyle("-fx-font-weight: bold; -fx-padding: 6 0 0 0;");
-        return l;
-    }
 
     private static Image image(int w, int h, int[] argb) {
         WritableImage img = new WritableImage(w, h);
@@ -345,33 +336,5 @@ public final class PixelArtPanel implements PluginPanel {
         String name = files.getFirst().getName().toLowerCase(Locale.ROOT);
         for (String ext : EXTENSIONS) if (name.endsWith("." + ext)) return files.getFirst().toPath();
         return null;
-    }
-
-    // ---- remembered settings ----------------------------------------------------------------------------------
-
-    private Path settingsFile() {
-        return ctx.dataFolder().resolve("panel.properties");
-    }
-
-    private OptionValues loadValues() {
-        Properties p = new Properties();
-        try (Reader r = Files.newBufferedReader(settingsFile())) {
-            p.load(r);
-        } catch (IOException e) {
-            return BuildOptions.OPTIONS.defaults();
-        }
-        Map<String, String> saved = new HashMap<>();
-        p.stringPropertyNames().forEach(k -> saved.put(k, p.getProperty(k)));
-        return OptionValues.fromStrings(BuildOptions.OPTIONS, saved, ctx.blocks());
-    }
-
-    private void saveValues() {
-        Properties p = new Properties();
-        p.putAll(values.toStrings());
-        try (Writer w = Files.newBufferedWriter(settingsFile())) {
-            p.store(w, "Pixel Art Generator panel settings");
-        } catch (IOException e) {
-            ctx.log("Couldn't save the panel settings: " + e.getMessage());
-        }
     }
 }

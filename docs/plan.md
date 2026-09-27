@@ -2,6 +2,13 @@
 
 > **Status (2026-09-27):** phases 0-3 are built and tested, and ship together as the first release, 0.1.0: the scaffold, flat pixel art, relief with slabs and stairs, the Place pixel art tool, extrude, inflate and revolve. The stair shapes are checked against Minecraft 26.3's own models. Phase 4 (host API 6) and phase 5 (local AI helpers) are still to do.
 
+> **0.2.0 (UI overhaul, API 6, needs BlockDesigner 0.4.24):** the page is now **Generate**, built with BlockDesigner's
+> UI kit: the picture and its preview at the top, the app's own options form (groups Shape / Blocks / Background and a
+> folded "Picture adjustments", units and help from `Options` metadata) remembered as `importer/image`, so the page and
+> File › Import share one set of values; Blocks used, then status and Build / Place at the bottom. The plugin's own
+> `OptionsForm` and `panel.properties` are gone (migrated once). BlockDesigner 0.4.24 also asks which importer to use
+> when Palette Tools is installed too, so the importer is reachable again.
+
 
 ## Context
 

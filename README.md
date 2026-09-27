@@ -14,13 +14,13 @@
   <a href="https://github.com/doolecg/BlockDesigner-PixelArtGenerator/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/doolecg/BlockDesigner-PixelArtGenerator/total"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/doolecg/BlockDesigner-PixelArtGenerator"></a>
   <img alt="Platform: Windows" src="https://img.shields.io/badge/platform-Windows-0078D6">
-  <a href="https://github.com/doolecg/BlockDesigner"><img alt="BlockDesigner plugin API 5" src="https://img.shields.io/badge/BlockDesigner-plugin%20API%205-46C46E"></a>
+  <a href="https://github.com/doolecg/BlockDesigner"><img alt="BlockDesigner plugin API 6" src="https://img.shields.io/badge/BlockDesigner-plugin%20API%206-46C46E"></a>
 </p>
 
 ---
 
 Pixel Art Generator is a plugin for [BlockDesigner](https://github.com/doolecg/BlockDesigner), the Windows editor for Minecraft builds. It is released
-on its own, separately from the app. It needs **BlockDesigner 0.4.17 or later** (plugin API 5).
+on its own, separately from the app. It needs **BlockDesigner 0.4.24 or later** (plugin API 6).
 
 **Contents:** [Download](#download-and-install) · [Features](#features) · [Building from source](#building-from-source) · [Project layout](#project-layout)
 
@@ -31,21 +31,23 @@ Get the latest version from the [releases page](https://github.com/doolecg/Block
 1. Download `pixel-art-generator-<version>.jar`.
 2. In BlockDesigner open **Plugins (puzzle icon) › Manage plugins… › Install…** and pick the jar.
 
-It is on straight away, with an **Pixel Art Generator** page in its tab on the right. You can switch it off, reload or uninstall it in the same window,
+It is on straight away, with a **Generate** page in its tab on the right. You can switch it off, reload or uninstall it in the same window,
 and it updates itself (Plugins › Manage plugins… › Update plugins automatically). Plugins run with the same access as BlockDesigner itself, so
 only install ones you trust.
 
 ## Features
 
-### The Pixel Art Generator page
+### The Generate page
 
 - **Open a picture** (PNG, JPEG, BMP or GIF), or drop one on the page.
-- **Three previews:** the **Picture**, its **Regions** (the colour groups it was split into) and the **Blocks** it will be built from. They update
-  as you change the settings.
-- **Build as new layer** adds the result as one undo step. **Place with tool** picks the **Place pixel art** tool, which shows the result as ghosts
-  where you point: click to place it, and **Shift+wheel** or **R** to turn it. **Copy block list** puts how many of each block it needs on the
-  clipboard.
-- The settings are remembered between runs.
+- **Three previews** at the top: the **Picture**, its **Regions** (the colour groups it was split into) and the **Blocks** it will be built
+  from. They update as you change the settings.
+- **The settings** under it, grouped: **Shape**, **Blocks**, **Background**, and **Picture adjustments** (folded away), each with its unit
+  and a line of help. They are remembered between runs, and they are the same settings File › Import uses.
+- **Blocks used:** how many of each block it takes; the copy button puts the list on the clipboard.
+- **At the bottom:** the size, block count, kinds and colour regions, any error, then **Build as new layer** (one undo step) and **Place with
+  tool**, which picks the **Place pixel art** tool: it shows the result as ghosts where you point; click to place it, and **Shift+wheel** or
+  **R** to turn it. The tool can be given a key in Settings › Keybinds.
 
 ### Shapes
 
@@ -90,8 +92,9 @@ from the textures of the Minecraft version and resource packs BlockDesigner has 
 
 ### Also from File › Import
 
-Pictures show up in BlockDesigner's **Import** window and can be dropped on the viewport. They are built with the same settings, which the
-Import dialog asks for.
+Pictures show up in BlockDesigner's **Import** window as **Pixel art from a picture** and can be dropped on the viewport. They are built with
+the same settings as the Generate page, which the Import dialog shows (and changing them there changes them on the page). With Palette Tools
+also installed, Import asks which of the two pixel-art importers to use.
 
 ### Coming next
 
@@ -107,7 +110,7 @@ You need Windows and a JDK 26 (Temurin 26 is what BlockDesigner uses; set `org.g
 ./gradlew jar      # build/libs/pixel-art-generator-<version>.jar
 ```
 
-The plugin compiles against the BlockDesigner plugin API jars in [`libs/`](libs) (from BlockDesigner 0.4.23). The app
+The plugin compiles against the BlockDesigner plugin API jars in [`libs/`](libs) (from BlockDesigner 0.4.24). The app
 provides them and JavaFX at runtime, so they are never bundled into the plugin. To target a newer API, replace them
 with the jars from a newer BlockDesigner build (`./gradlew :plugin-api:jar :core:jar` in the
 [BlockDesigner repository](https://github.com/doolecg/BlockDesigner)) and update the file names in `build.gradle.kts`.
@@ -136,7 +139,7 @@ The tests cover the picture pipeline without the app or Minecraft's assets, usin
 | `src/main/java/.../palette` | The block sets, how blocks look (`BlockColours`, from the texture atlas), matching (`Matcher`) and dithering (`BlockGrid`) |
 | `src/main/java/.../shape` | Turning the block grid into a build: `FlatShape`, `ReliefShape`, `SolidShapes` (extrude, inflate, revolve), the half-block field (`HalfField`), slabs and stairs (`SubBlock`), `Orientation` and `Rotate` |
 | `src/main/java/.../helpers` | Hooks for optional local AI models (depth, background removal, material tags); none are used yet |
-| `src/main/java/.../ui` | The Pixel Art Generator page, the Place pixel art tool and the importer |
+| `src/main/java/.../ui` | The Generate page, the Place pixel art tool and the importer |
 | `src/main/resources/blockdesigner-plugin.json` | The manifest BlockDesigner reads: id, name, version, main class, API level |
 | `src/test/java` | Tests |
 | `libs/` | The BlockDesigner plugin API jars it compiles against |

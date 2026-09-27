@@ -10,9 +10,8 @@ import io.blockdesigner.plugin.PluginContext;
 
 /**
  * Pixel Art Generator: turns a picture into blocks. The picture is split into colour regions (no AI), each region or pixel
- * is matched to the block that looks closest, and the result is built as a new layer. An Pixel Art Generator page in the
- * plugin's tab, a Place pixel art tool, and File › Import
- * for pictures.
+ * is matched to the block that looks closest, and the result is built as a new layer. A Generate page in the plugin's
+ * tab, a Place pixel art tool, and File › Import for pictures (sharing the page's settings).
  */
 public final class PixelArtGeneratorPlugin implements BlockDesignerPlugin {
     @Override
