@@ -1,3 +1,14 @@
+# Pixel Art Generator 0.2.1
+
+Kept up to date with BlockDesigner 0.4.27: built and tested against its plugin API. Nothing changes in how it works.
+
+**Needs BlockDesigner 0.4.24 or later** (plugin API 6). Older BlockDesigners keep 0.1.2 until BlockDesigner itself is updated.
+
+## Changed
+- Built against the BlockDesigner 0.4.27 plugin API.
+
+---
+
 # Pixel Art Generator 0.2.0
 
 The Generate page is easier to read: settings grouped under headings, with units and help, and shared with File › Import.
